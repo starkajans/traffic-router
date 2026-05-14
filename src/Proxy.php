@@ -184,15 +184,40 @@ final class Proxy
         // 3. Strip http-equiv refresh redirects
         $html = preg_replace('~<meta[^>]+http-equiv\s*=\s*["\']refresh["\'][^>]*>~i', '', $html) ?? $html;
 
+        // Asset rewriter — through our proxy
         $rewrite = function (string $url) use ($baseUrl, $assetEndpoint): ?string {
             $abs = $this->resolveUrl($url, $baseUrl);
             if ($abs === null) return null;
             return $assetEndpoint . '?t=' . $this->sign($abs);
         };
 
-        // src=, href=, action=, formaction=, poster=, data-src=, content= (for og:image), cite=
+        // Absolute rewriter — leave the visitor's browser to navigate to the real
+        // destination (so cookies / sessions / forms / SPAs all work on the real
+        // site once they click). Used for <a> and <form> targets.
+        $absolute = function (string $url) use ($baseUrl): ?string {
+            $abs = $this->resolveUrl($url, $baseUrl);
+            if ($abs === null) return null;
+            return $abs;
+        };
+
+        // 1) Navigation/form targets → absolute destination URLs.
+        //    Rename to __trafic_{attr} so step 2 doesn't re-match these and
+        //    accidentally proxy them. Restored in step 4.
         $html = preg_replace_callback(
-            '~\b(src|href|action|formaction|poster|data-src|cite)\s*=\s*(["\'])([^"\']*?)\2~i',
+            '#<(a|area|form|button|iframe)\b([^>]*?)\b(href|action|formaction|src)\s*=\s*(["\'])([^"\']*?)\4#i',
+            function ($m) use ($absolute) {
+                $val = trim($m[5]);
+                if ($val === '' || $val[0] === '#') return $m[0];
+                $abs = $absolute($val);
+                if ($abs === null) return $m[0];
+                return '<' . $m[1] . $m[2] . '__trafic_' . $m[3] . '=' . $m[4] . htmlspecialchars($abs, ENT_QUOTES) . $m[4];
+            },
+            $html
+        ) ?? $html;
+
+        // 2) Remaining asset attrs (img/script/link CSS/source/poster/etc) → proxy
+        $html = preg_replace_callback(
+            '~\b(src|href|poster|data-src|cite)\s*=\s*(["\'])([^"\']*?)\2~i',
             function ($m) use ($rewrite) {
                 $new = $rewrite($m[3]);
                 if ($new === null) return $m[0];
@@ -200,6 +225,9 @@ final class Proxy
             },
             $html
         ) ?? $html;
+
+        // 3) Restore the renamed nav attributes
+        $html = preg_replace('~__trafic_(href|action|formaction|src)=~i', '$1=', $html) ?? $html;
 
         // srcset can hold multiple URLs separated by commas with optional descriptors
         $html = preg_replace_callback(
