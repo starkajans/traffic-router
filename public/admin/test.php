@@ -13,6 +13,166 @@ $db = Bootstrap::db();
 
 $campaigns = $db->all('SELECT id, slug, name, root_node_id, default_redirect_url FROM campaigns ORDER BY name');
 
+// ---- Detect "my computer" values from the actual current request -----------
+$cfg = Bootstrap::config();
+$selfUa = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$selfIp = GeoIP::clientIp($cfg);
+$selfCfCountry = strtoupper(trim((string) ($_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')));
+$selfLang = UserAgent::primaryLanguage() ?? '';
+
+// ---- Preset templates -------------------------------------------------------
+$presets = [
+    'self' => [
+        'icon'  => '💻',
+        'label' => 'Benim bilgisayarım',
+        'desc'  => 'Şu an giriş yaptığın gerçek değerlerin',
+        'data'  => [
+            'ua'      => $selfUa,
+            'ip'      => $selfIp,
+            'country' => $selfCfCountry !== '' && $selfCfCountry !== 'XX' ? $selfCfCountry : '',
+            'language'=> $selfLang,
+        ],
+    ],
+    'tr_iphone' => [
+        'icon'  => '📱',
+        'label' => 'Türk iPhone',
+        'desc'  => 'TR, Safari, iOS, mobile',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'mobile', 'os' => 'iOS', 'browser' => 'Safari',
+            'ua'      => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+        ],
+    ],
+    'tr_android' => [
+        'icon'  => '🤖',
+        'label' => 'Türk Android',
+        'desc'  => 'TR, Chrome, Android, mobile',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'mobile', 'os' => 'Android', 'browser' => 'Chrome',
+            'ua'      => 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+        ],
+    ],
+    'tr_desktop' => [
+        'icon'  => '🖥️',
+        'label' => 'Türk Windows',
+        'desc'  => 'TR, Chrome, Windows, desktop',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'desktop', 'os' => 'Windows 10/11', 'browser' => 'Chrome',
+            'ua'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        ],
+    ],
+    'us_desktop' => [
+        'icon'  => '🇺🇸',
+        'label' => 'ABD masaüstü',
+        'desc'  => 'US, Chrome, Windows',
+        'data'  => [
+            'country' => 'US', 'language' => 'en',
+            'device'  => 'desktop', 'os' => 'Windows 10/11', 'browser' => 'Chrome',
+            'ua'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        ],
+    ],
+    'de_mac' => [
+        'icon'  => '🇩🇪',
+        'label' => 'Alman Mac',
+        'desc'  => 'DE, Safari, macOS',
+        'data'  => [
+            'country' => 'DE', 'language' => 'de',
+            'device'  => 'desktop', 'os' => 'macOS', 'browser' => 'Safari',
+            'ua'      => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+        ],
+    ],
+    'meta_ad_click' => [
+        'icon'  => '📘',
+        'label' => 'Facebook reklam tıklaması',
+        'desc'  => 'TR mobil + fbclid',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'mobile', 'os' => 'iOS', 'browser' => 'Safari',
+            'ad_platform'   => 'meta_ads',
+            'referrer_host' => 'l.facebook.com',
+            'ua'      => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram',
+        ],
+    ],
+    'google_ad_click' => [
+        'icon'  => '🔍',
+        'label' => 'Google reklam tıklaması',
+        'desc'  => 'TR desktop + gclid',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'desktop', 'os' => 'Windows 10/11', 'browser' => 'Chrome',
+            'ad_platform'   => 'google_ads',
+            'referrer_host' => 'google.com',
+        ],
+    ],
+    'tiktok_ad_click' => [
+        'icon'  => '🎵',
+        'label' => 'TikTok reklam tıklaması',
+        'desc'  => 'TR mobil + ttclid',
+        'data'  => [
+            'country' => 'TR', 'language' => 'tr',
+            'device'  => 'mobile', 'os' => 'Android', 'browser' => 'Chrome',
+            'ad_platform'   => 'tiktok_ads',
+            'referrer_host' => 'tiktok.com',
+        ],
+    ],
+    'gptbot' => [
+        'icon'  => '🤖',
+        'label' => 'ChatGPT (GPTBot)',
+        'desc'  => 'OpenAI crawler',
+        'data'  => [
+            'bot' => 'GPTBot', 'bot_category' => 'ai',
+            'ua'  => 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot',
+        ],
+    ],
+    'claudebot' => [
+        'icon'  => '🧠',
+        'label' => 'Claude (ClaudeBot)',
+        'desc'  => 'Anthropic crawler',
+        'data'  => [
+            'bot' => 'ClaudeBot', 'bot_category' => 'ai',
+            'ua'  => 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ClaudeBot/1.0; +claudebot@anthropic.com',
+        ],
+    ],
+    'perplexity' => [
+        'icon'  => '🔎',
+        'label' => 'Perplexity',
+        'desc'  => 'PerplexityBot',
+        'data'  => [
+            'bot' => 'PerplexityBot', 'bot_category' => 'ai',
+            'ua'  => 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; PerplexityBot/1.0; +https://docs.perplexity.ai/docs/perplexity-bot',
+        ],
+    ],
+    'googlebot' => [
+        'icon'  => '🌐',
+        'label' => 'Googlebot',
+        'desc'  => 'Google arama crawler',
+        'data'  => [
+            'bot' => 'Googlebot', 'bot_category' => 'search',
+            'ua'  => 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        ],
+    ],
+    'adsbot_google' => [
+        'icon'  => '📊',
+        'label' => 'Google Ads botu',
+        'desc'  => 'AdsBot-Google (landing kontrol)',
+        'data'  => [
+            'bot' => 'AdsBot-Google', 'bot_category' => 'ads_google',
+            'ua'  => 'AdsBot-Google (+http://www.google.com/adsbot.html)',
+        ],
+    ],
+    'fb_share' => [
+        'icon'  => '📱',
+        'label' => 'Facebook link önizleme',
+        'desc'  => 'facebookexternalhit (ads_meta)',
+        'data'  => [
+            'bot' => 'facebookexternalhit', 'bot_category' => 'ads_meta',
+            'ua'  => 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        ],
+    ],
+];
+
 $selectedId = (int) ($_GET['campaign'] ?? $_POST['campaign'] ?? ($campaigns[0]['id'] ?? 0));
 $selected = null;
 foreach ($campaigns as $c) {
@@ -52,7 +212,6 @@ if ($botName !== '' && $botCat === '') {
 // If an IP was given, look up country
 $geoLookup = null;
 if ($ip !== '') {
-    $cfg = Bootstrap::config();
     $geo = new GeoIP($cfg['geoip_db'] ?? null);
     $geoLookup = $geo->lookup($ip);
     if (!$country && $geoLookup['code']) {
@@ -155,6 +314,18 @@ layout_head('Test redirect');
     </select>
   </div>
 
+  <h2 style="margin-top:18px">⚡ Hazır şablonlar <span class="muted" style="font-size:12px">(tıkla, alanlar otomatik dolar)</span></h2>
+  <div id="presets" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+    <?php foreach ($presets as $key => $p): ?>
+      <button type="button" class="preset-chip"
+              data-preset='<?= h(json_encode($p['data'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'
+              title="<?= h($p['desc']) ?>">
+        <span style="font-size:16px"><?= $p['icon'] ?></span>
+        <?= h($p['label']) ?>
+      </button>
+    <?php endforeach; ?>
+  </div>
+
   <h2 style="margin-top:18px">Option A — paste a User-Agent + IP (auto-detects device/OS/browser/bot/country)</h2>
   <div class="row">
     <div class="col">
@@ -220,9 +391,72 @@ layout_head('Test redirect');
     <div class="col"><label>Referrer host</label><input type="text" name="referrer_host" value="<?= h($refHost) ?>" placeholder="google.com"></div>
   </div>
 
-  <p style="margin-top:14px"><button class="btn">Run test</button></p>
+  <p style="margin-top:14px">
+    <button class="btn">Run test</button>
+    <button type="button" class="btn btn-secondary" id="clear-btn">Temizle</button>
+  </p>
 </form>
 </div>
+
+<style>
+.preset-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 16px;
+    background: #f3f4f6; border: 1px solid #e5e7eb;
+    font-size: 13px; cursor: pointer;
+    transition: all 0.15s;
+}
+.preset-chip:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+.preset-chip.active { background: #1e40af; color: #fff; border-color: #1e40af; }
+</style>
+
+<script>
+(function() {
+    const FORM = document.querySelector('form');
+    const FIELDS = ['ua','ip','country','language','device','os','browser','bot','bot_category','ad_platform','referrer_host'];
+
+    function setField(name, value) {
+        const el = FORM.querySelector('[name="' + name + '"]');
+        if (!el) return;
+        if (el.tagName === 'SELECT') {
+            // For selects, find matching option (case-insensitive) or set to '' if no match
+            const v = (value || '').toString();
+            let found = false;
+            for (const opt of el.options) {
+                if (opt.value.toLowerCase() === v.toLowerCase()) {
+                    el.value = opt.value;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) el.value = '';
+        } else {
+            el.value = value || '';
+        }
+    }
+
+    function clearAll() {
+        FIELDS.forEach(f => setField(f, ''));
+        document.querySelectorAll('.preset-chip.active').forEach(c => c.classList.remove('active'));
+    }
+
+    function applyPreset(data, chipEl) {
+        clearAll();
+        Object.entries(data).forEach(([k, v]) => setField(k, v));
+        document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+        if (chipEl) chipEl.classList.add('active');
+    }
+
+    document.querySelectorAll('.preset-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const data = JSON.parse(chip.dataset.preset);
+            applyPreset(data, chip);
+        });
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', clearAll);
+})();
+</script>
 
 <?php if ($ran): ?>
   <div class="card">
