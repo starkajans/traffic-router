@@ -10,3 +10,6 @@ RewriteRule ^go/([A-Za-z0-9_-]+)/_proxy/?$ index.php?slug=$1&_proxy=1 [L,QSA]
 
 # /go/{slug} -> main router
 RewriteRule ^go/([A-Za-z0-9_-]+)/?$ index.php?slug=$1 [L,QSA]
+
+# /p/{slug} -> AI-generated landing page
+RewriteRule ^p/([A-Za-z0-9_-]+)/?$ p.php?slug=$1 [L,QSA]
