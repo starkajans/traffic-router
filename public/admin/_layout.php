@@ -49,9 +49,11 @@ function layout_head(string $title): void {
   <a href="<?= h(admin_url('/')) ?>" class="brand">Trafic Router</a>
   <?php if ($loggedIn): ?>
   <nav>
+    <a href="<?= h(admin_url('/wizard.php')) ?>">🤖 AI Wizard</a>
     <a href="<?= h(admin_url('/')) ?>">Campaigns</a>
     <a href="<?= h(admin_url('/test.php')) ?>">Test</a>
     <a href="<?= h(admin_url('/analytics.php')) ?>">Analytics</a>
+    <a href="<?= h(admin_url('/settings.php')) ?>">⚙️ Settings</a>
     <span class="user"><?= h($user) ?></span>
     <a href="<?= h(admin_url('/logout.php')) ?>" class="logout">Logout</a>
   </nav>

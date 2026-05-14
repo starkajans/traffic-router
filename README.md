@@ -172,6 +172,32 @@ Each redirect node has a **delivery mode**:
 
 ---
 
+## AI Wizard (Gemini) — natural-language campaign creation
+
+The admin panel includes an **AI Wizard** that lets you describe what you want in plain Turkish/English, asks clarifying questions, and builds the campaign + decision tree automatically. Powered by Google Gemini.
+
+### Setup
+
+1. Get a free Gemini API key from <https://aistudio.google.com/apikey>
+2. Admin panel → **⚙️ Settings** → paste the key, choose a model (default: Gemini 2.5 Flash, free tier)
+3. Click **Bağlantıyı test et** to verify
+4. Go to **🤖 AI Wizard** and start chatting
+
+### Example conversations
+
+- "Türk mobil kullanıcılar A landing'e, Türk desktop'lar B'ye, diğer ülkeler C'ye"
+- "Tüm AI botlarını engelle, gerçek kullanıcılar gerçek siteme gelsin"
+- "Facebook reklamından gelenler özel bir landing'e, Google reklamından gelenler başka bir landing'e"
+- "Sadece Türkiye'den gelen mobil iPhone kullanıcılarına bir App Store linki, geri kalan herkese normal site"
+
+The wizard knows the full schema (variables, operators, bot categories, ad platforms) and produces a JSON tree that's validated and inserted into the DB transactionally. After creation, it redirects you to the tree editor where you can still tweak by hand.
+
+### Cost
+
+Gemini 2.5 Flash is **free** under generous quotas (millions of tokens/month). A typical wizard conversation uses ~5-20K tokens. You'll likely never pay.
+
+---
+
 ## Running behind Cloudflare
 
 This is the recommended deployment. With Cloudflare in front:
