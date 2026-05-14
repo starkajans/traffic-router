@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
 CREATE TABLE IF NOT EXISTS campaigns (
     id INT AUTO_INCREMENT PRIMARY KEY,
     slug VARCHAR(64) NOT NULL UNIQUE,
+    incoming_path VARCHAR(255) NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     root_node_id INT NULL,
     default_redirect_url TEXT NULL,

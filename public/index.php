@@ -14,16 +14,34 @@ $cfg = Bootstrap::config();
 $db  = Bootstrap::db();
 
 $slug = $_GET['slug'] ?? '';
-if (!preg_match('~^[A-Za-z0-9_-]{1,64}$~', $slug)) {
-    http_response_code(404);
-    echo 'Not found.';
-    exit;
+$campaign = null;
+
+if ($slug !== '') {
+    // /go/{slug} flow — match by slug
+    if (!preg_match('~^[A-Za-z0-9_-]{1,64}$~', $slug)) {
+        http_response_code(404);
+        echo 'Not found.';
+        exit;
+    }
+    $campaign = $db->one(
+        'SELECT id, slug, name, root_node_id, default_redirect_url, active FROM campaigns WHERE slug = ? LIMIT 1',
+        [$slug]
+    );
+} else {
+    // No slug — try to match by custom incoming_path (root or other paths)
+    $reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    // Normalise: strip trailing slash except for root, lowercase
+    $reqPath = $reqPath === '/' ? '/' : rtrim($reqPath, '/');
+    $base = rtrim($cfg['base_path'] ?? '', '/');
+    if ($base !== '' && strpos($reqPath, $base) === 0) {
+        $reqPath = substr($reqPath, strlen($base)) ?: '/';
+    }
+    $campaign = $db->one(
+        'SELECT id, slug, name, root_node_id, default_redirect_url, active FROM campaigns WHERE incoming_path = ? LIMIT 1',
+        [$reqPath]
+    );
 }
 
-$campaign = $db->one(
-    'SELECT id, slug, name, root_node_id, default_redirect_url, active FROM campaigns WHERE slug = ? LIMIT 1',
-    [$slug]
-);
 if (!$campaign || !$campaign['active']) {
     http_response_code(404);
     echo 'Not found.';

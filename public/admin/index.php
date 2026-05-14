@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $campaigns = $db->all(
-    'SELECT c.id, c.slug, c.name, c.active, c.root_node_id, c.default_redirect_url, c.created_at,
+    'SELECT c.id, c.slug, c.incoming_path, c.name, c.active, c.root_node_id, c.default_redirect_url, c.created_at,
             (SELECT COUNT(*) FROM hits h WHERE h.campaign_id = c.id) AS hit_count,
             (SELECT COUNT(*) FROM tree_nodes n WHERE n.campaign_id = c.id) AS node_count
      FROM campaigns c
@@ -64,8 +64,10 @@ layout_head('Campaigns');
       <tr>
         <td><strong><?= h($c['name']) ?></strong></td>
         <td>
-          <code><?= h($c['slug']) ?></code><br>
-          <span class="muted" style="font-size:12px"><?= h($host . $base . '/go/' . $c['slug']) ?></span>
+          <div><code><?= h($host . $base . '/go/' . $c['slug']) ?></code></div>
+          <?php if (!empty($c['incoming_path'])): ?>
+            <div style="margin-top:3px"><code style="background:#dbeafe;color:#1e40af"><?= h($host . $base . $c['incoming_path']) ?></code></div>
+          <?php endif; ?>
         </td>
         <td><?= (int) $c['node_count'] ?></td>
         <td><?= (int) $c['hit_count'] ?></td>
