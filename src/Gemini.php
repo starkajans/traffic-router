@@ -44,8 +44,12 @@ final class Gemini
         $payload = [
             'contents' => $contents,
             'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => 4096,
+                'temperature'     => $temperature,
+                'maxOutputTokens' => 8192,
+                // Disable thinking on Gemini 2.5 family — thinking tokens eat into
+                // the output budget and a complex system prompt can starve actual
+                // response generation. We don't need step-by-step reasoning here.
+                'thinkingConfig'  => ['thinkingBudget' => 0],
             ],
         ];
         if ($systemInstruction !== null && $systemInstruction !== '') {

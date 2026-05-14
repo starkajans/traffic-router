@@ -95,9 +95,8 @@ layout_head('Ayarlar');
       <select name="gemini_model">
         <?php foreach ([
             'gemini-2.5-flash'      => 'Gemini 2.5 Flash (hızlı, ücretsiz tier — önerilir)',
+            'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite (en ucuz, kısa cevaplar için)',
             'gemini-2.5-pro'        => 'Gemini 2.5 Pro (daha akıllı, ücretli)',
-            'gemini-2.0-flash'      => 'Gemini 2.0 Flash',
-            'gemini-1.5-flash'      => 'Gemini 1.5 Flash (legacy)',
         ] as $k => $label): ?>
           <option value="<?= h($k) ?>" <?= $model === $k ? 'selected' : '' ?>><?= h($label) ?></option>
         <?php endforeach; ?>
