@@ -226,6 +226,11 @@ server {
     real_ip_header CF-Connecting-IP;
 
     # ---- Routing ----------------------------------------------------------
+    # ---- Route rewrites ---------------------------------------------------
+    rewrite ^/go/([A-Za-z0-9_-]+)/_proxy/?$ /index.php?slug=$1&_proxy=1 last;
+    rewrite ^/go/([A-Za-z0-9_-]+)/?$       /index.php?slug=$1 last;
+    rewrite ^/p/([A-Za-z0-9_-]+)/?$        /p.php?slug=$1 last;
+
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
@@ -350,6 +355,11 @@ server {
     set_real_ip_from 2a06:98c0::/29;
     set_real_ip_from 2c0f:f248::/32;
     real_ip_header CF-Connecting-IP;
+
+    # ---- Route rewrites ---------------------------------------------------
+    rewrite ^/go/([A-Za-z0-9_-]+)/_proxy/?$ /index.php?slug=$1&_proxy=1 last;
+    rewrite ^/go/([A-Za-z0-9_-]+)/?$       /index.php?slug=$1 last;
+    rewrite ^/p/([A-Za-z0-9_-]+)/?$        /p.php?slug=$1 last;
 
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
