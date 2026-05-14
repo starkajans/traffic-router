@@ -90,12 +90,33 @@ final class Gemini
             throw new \RuntimeException('Gemini geçersiz JSON döndürdü');
         }
 
-        // Safety block?
-        if (!empty($data['candidates'][0]['finishReason']) && $data['candidates'][0]['finishReason'] === 'SAFETY') {
-            return '[Gemini güvenlik filtrelerine takıldı — başka bir şekilde sormayı dene]';
+        // Prompt-level block (returns no candidates at all)
+        if (empty($data['candidates'])) {
+            $reason = $data['promptFeedback']['blockReason'] ?? 'unknown';
+            error_log('[Gemini] No candidates. Full response: ' . substr((string) $response, 0, 2000));
+            throw new \RuntimeException("Gemini cevap üretmedi (block reason: $reason). Model adını veya prompt'u kontrol et.");
         }
 
-        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        $candidate = $data['candidates'][0];
+        $finishReason = $candidate['finishReason'] ?? '';
+        $text = $candidate['content']['parts'][0]['text'] ?? '';
+
+        if ($text === '') {
+            error_log('[Gemini] Empty text. finishReason=' . $finishReason . ' response=' . substr((string) $response, 0, 2000));
+            switch ($finishReason) {
+                case 'SAFETY':
+                    return '[Gemini güvenlik filtrelerine takıldı — farklı bir ifade dene]';
+                case 'MAX_TOKENS':
+                    return '[Cevap çok uzundu, max token sınırına dayandı]';
+                case 'RECITATION':
+                    return '[Gemini telif/recitation filtresi engelledi]';
+                case 'OTHER':
+                    return '[Gemini "OTHER" sebebiyle cevap vermedi — modeli değiştirmeyi dene]';
+                default:
+                    return '[Gemini boş cevap döndü (finishReason: ' . ($finishReason ?: 'yok') . '). Settings\'ten farklı bir model dene.]';
+            }
+        }
+
         return (string) $text;
     }
 
