@@ -82,15 +82,24 @@ PROMPT;
             throw new \InvalidArgumentException('Açıklama boş olamaz');
         }
 
+        // Landing page HTML can be 10-30K tokens — give it room.
         $rawHtml = $gemini->chat(
             [['role' => 'user', 'content' => $userPrompt]],
             self::systemPrompt(),
-            0.8
+            0.8,
+            32768
         );
 
         $html = self::cleanHtml($rawHtml);
-        if (stripos($html, '<html') === false || stripos($html, '</html>') === false) {
-            throw new \RuntimeException('Gemini geçerli bir HTML dokümanı üretmedi. Açıklamayı netleştirip tekrar dene.');
+        $hasOpen  = stripos($html, '<html') !== false;
+        $hasClose = stripos($html, '</html>') !== false;
+
+        if (!$hasOpen || !$hasClose) {
+            error_log('[PageGenerator] generate failed. Raw response (first 4KB): ' . substr($rawHtml, 0, 4096));
+            $hint = !$hasOpen
+                ? 'Gemini HTML üretmedi (sohbet cevabı verdi). Açıklamada açıkça "HTML sayfa üret" de.'
+                : 'Gemini HTML\'i yarıda kesti (token limiti). Açıklamayı daha kısa tut, daha basit bir sayfa iste.';
+            throw new \RuntimeException($hint);
         }
 
         return [
@@ -101,21 +110,27 @@ PROMPT;
 
     /**
      * Strip markdown fences and leading/trailing junk Gemini sometimes adds.
+     * Tolerant of conversational text before/after the HTML.
      */
     public static function cleanHtml(string $raw): string
     {
         $raw = trim($raw);
-        // Strip ```html ... ``` or ``` ... ```
-        if (preg_match('#^```(?:html)?\s*\n(.*?)\n```\s*$#s', $raw, $m)) {
+
+        // 1. Pull HTML out of a ```html ... ``` block anywhere in the text
+        if (preg_match('#```(?:html|HTML)?\s*\n?(.*?)\n?\s*```#s', $raw, $m)) {
             $raw = trim($m[1]);
         }
-        // Strip leading text before <!doctype or <html
-        if (preg_match('#<!doctype[^>]*>.*</html>#is', $raw, $m)) {
+
+        // 2. Prefer the full doctype...</html> slice
+        if (preg_match('#<!doctype[^>]*>.*?</html\s*>#is', $raw, $m)) {
             return trim($m[0]);
         }
-        if (preg_match('#<html[\s>].*</html>#is', $raw, $m)) {
+
+        // 3. Plain <html>...</html> (no doctype) — prepend one
+        if (preg_match('#<html[\s>][\s\S]*?</html\s*>#i', $raw, $m)) {
             return "<!doctype html>\n" . trim($m[0]);
         }
+
         return $raw;
     }
 
@@ -141,12 +156,14 @@ PROMPT;
         $rawHtml = $gemini->chat(
             [['role' => 'user', 'content' => $msg]],
             self::systemPrompt(),
-            0.7
+            0.7,
+            32768
         );
 
         $html = self::cleanHtml($rawHtml);
-        if (stripos($html, '<html') === false) {
-            throw new \RuntimeException('Gemini geçerli HTML üretmedi');
+        if (stripos($html, '<html') === false || stripos($html, '</html>') === false) {
+            error_log('[PageGenerator] edit failed. Raw response (first 4KB): ' . substr($rawHtml, 0, 4096));
+            throw new \RuntimeException('Gemini düzenlemeyi tamamlayamadı (truncate veya HTML üretmedi). Talimatı sadeleştir.');
         }
 
         return [

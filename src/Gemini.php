@@ -30,7 +30,7 @@ final class Gemini
      *
      * @param array<array{role:string,content:string}> $messages
      */
-    public function chat(array $messages, ?string $systemInstruction = null, float $temperature = 0.7): string
+    public function chat(array $messages, ?string $systemInstruction = null, float $temperature = 0.7, int $maxOutputTokens = 8192): string
     {
         $contents = [];
         foreach ($messages as $m) {
@@ -45,7 +45,7 @@ final class Gemini
             'contents' => $contents,
             'generationConfig' => [
                 'temperature'     => $temperature,
-                'maxOutputTokens' => 8192,
+                'maxOutputTokens' => $maxOutputTokens,
                 // Disable thinking on Gemini 2.5 family — thinking tokens eat into
                 // the output budget and a complex system prompt can starve actual
                 // response generation. We don't need step-by-step reasoning here.
