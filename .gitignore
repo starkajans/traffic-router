@@ -1,0 +1,6 @@
+/vendor/
+/config.php
+/data/*.mmdb
+/data/*.tar.gz
+.DS_Store
+*.log

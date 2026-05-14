@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Allow direct access to existing files (admin/, assets, etc.)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# /go/{slug}/_proxy -> proxied asset endpoint (token in ?t=...)
+RewriteRule ^go/([A-Za-z0-9_-]+)/_proxy/?$ index.php?slug=$1&_proxy=1 [L,QSA]
+
+# /go/{slug} -> main router
+RewriteRule ^go/([A-Za-z0-9_-]+)/?$ index.php?slug=$1 [L,QSA]
