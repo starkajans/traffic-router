@@ -146,9 +146,10 @@ PROMPT;
      */
     public static function extractCampaignJson(string $aiResponse): ?array
     {
-        if (!preg_match('~~~~campaign\s*\n(.*?)\n~~~~s', $aiResponse, $m)) {
-            // Fallback: try plain ```campaign or ```json blocks
-            if (!preg_match('~```(?:campaign|json)?\s*\n(\{.*?\})\s*\n```~s', $aiResponse, $m)) {
+        // Use # as regex delimiter since the fence itself uses ~ which would confuse parser
+        if (!preg_match('#~~~campaign\s*\n(.*?)\n~~~#s', $aiResponse, $m)) {
+            // Fallback: plain ```campaign or ```json blocks
+            if (!preg_match('#```(?:campaign|json)?\s*\n(\{.*?\})\s*\n```#s', $aiResponse, $m)) {
                 return null;
             }
         }
@@ -165,8 +166,8 @@ PROMPT;
      */
     public static function stripCampaignBlock(string $aiResponse): string
     {
-        $cleaned = preg_replace('~~~~campaign\s*\n.*?\n~~~~s', '', $aiResponse);
-        $cleaned = preg_replace('~```(?:campaign|json)?\s*\n\{.*?\}\s*\n```~s', '', (string) $cleaned);
+        $cleaned = preg_replace('#~~~campaign\s*\n.*?\n~~~#s', '', $aiResponse);
+        $cleaned = preg_replace('#```(?:campaign|json)?\s*\n\{.*?\}\s*\n```#s', '', (string) $cleaned);
         return trim((string) $cleaned);
     }
 
