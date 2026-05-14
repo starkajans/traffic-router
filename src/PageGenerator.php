@@ -65,6 +65,14 @@ Bot'ların (Google, Facebook, AI crawler'lar) sayfayı meşru sanması için:
 - ❌ Auto-redirect script ekleme (meta refresh yok, window.location yok)
 - ❌ Cloaking yapma, hidden text yok
 
+# Boyut
+
+Sayfa **eksiksiz ama abartısız** olsun. Toplam ~6-12 bin token (~25-50 KB HTML) hedefle:
+- CSS'i kompakt yaz (sınıfları yeniden kullan, tekrar etme)
+- Gereksiz uzun açıklamalar yazma — her bölüm 2-4 cümle yeter
+- Listede 3-4 öğe yeterli (her birinde 10 öğe DEĞİL)
+- JSON-LD schema kısa olsun (Organization yeter, gereksiz alan ekleme)
+
 # Çıktı
 
 SADECE HTML. Açıklama, yorum, markdown fence YOK. İlk karakter `<` olmalı. Son karakter `>` olmalı.
@@ -82,12 +90,13 @@ PROMPT;
             throw new \InvalidArgumentException('Açıklama boş olamaz');
         }
 
-        // Landing page HTML can be 10-30K tokens — give it room.
+        // Landing page HTML ~8-15K tokens. Cap at 16K to keep generation under
+        // ~2 minutes (Gemini 2.5 Flash emits ~80-150 tok/s).
         $rawHtml = $gemini->chat(
             [['role' => 'user', 'content' => $userPrompt]],
             self::systemPrompt(),
             0.8,
-            32768
+            16384
         );
 
         $html = self::cleanHtml($rawHtml);
@@ -157,7 +166,7 @@ PROMPT;
             [['role' => 'user', 'content' => $msg]],
             self::systemPrompt(),
             0.7,
-            32768
+            16384
         );
 
         $html = self::cleanHtml($rawHtml);

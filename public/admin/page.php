@@ -43,7 +43,9 @@ if ($apiAction && in_array($apiAction, ['ai_generate', 'ai_edit'], true)) {
     }
 
     try {
-        $g = new Gemini($apiKey, $model, 120); // long timeout, HTML gen can take a while
+        // Long curl + PHP timeout for HTML gen (Gemini emits 80-150 tok/s, can take ~2 min)
+        set_time_limit(240);
+        $g = new Gemini($apiKey, $model, 180);
         if ($apiAction === 'ai_generate') {
             $description = trim((string) ($body['description'] ?? ''));
             if ($description === '') throw new \InvalidArgumentException('Açıklama boş');
