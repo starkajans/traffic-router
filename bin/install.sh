@@ -46,8 +46,19 @@ while true; do
     warn "Şifre çok kısa, tekrar dene"
 done
 
-read -rp "Let's Encrypt için email: " LE_EMAIL
-[[ -z "$LE_EMAIL" ]] && err "Email boş olamaz"
+echo
+echo "SSL yöntemi:"
+echo "  1) Let's Encrypt (otomatik, Cloudflare proxy GRİ olmalı şu an)"
+echo "  2) Cloudflare Origin Certificate (cert + key'i yapıştır, CF proxy TURUNCU kalır)"
+echo "  3) Atla (SSL'i sonra kuracaksın)"
+read -rp "Seçim [1/2/3, default=2]: " SSL_MODE
+SSL_MODE=${SSL_MODE:-2}
+
+LE_EMAIL=""
+if [[ "$SSL_MODE" == "1" ]]; then
+    read -rp "Let's Encrypt için email: " LE_EMAIL
+    [[ -z "$LE_EMAIL" ]] && err "Email boş olamaz"
+fi
 
 read -rp "MaxMind GeoIP license key (boş bırak = atla, CF arkasındaysan gerekmez): " MAXMIND_KEY
 
@@ -245,13 +256,133 @@ systemctl reload nginx
 ok "nginx aktif: http://$DOMAIN"
 
 # ---- 12. SSL --------------------------------------------------------------
-log "SSL sertifikası alınıyor (Let's Encrypt)..."
-if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LE_EMAIL" --redirect --no-eff-email 2>&1 | tail -5; then
-    ok "HTTPS aktif: https://$DOMAIN"
-else
-    warn "Certbot başarısız. DNS henüz $DOMAIN için bu sunucuyu göstermiyor olabilir."
-    warn "Manuel: certbot --nginx -d $DOMAIN"
-fi
+case "$SSL_MODE" in
+    1)
+        log "SSL sertifikası alınıyor (Let's Encrypt)..."
+        if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LE_EMAIL" --redirect --no-eff-email 2>&1 | tail -5; then
+            ok "HTTPS aktif: https://$DOMAIN"
+        else
+            warn "Certbot başarısız. DNS henüz $DOMAIN için bu sunucuyu göstermiyor olabilir."
+            warn "Manuel: certbot --nginx -d $DOMAIN"
+        fi
+        ;;
+    2)
+        log "Cloudflare Origin Certificate kuruluyor..."
+        mkdir -p /etc/ssl/cloudflare
+        chmod 700 /etc/ssl/cloudflare
+
+        echo
+        echo "─────────────────────────────────────────────────────────────"
+        echo "  Cloudflare Origin Certificate'ı yapıştır."
+        echo "  Başlangıç: -----BEGIN CERTIFICATE-----"
+        echo "  Bitiş:     -----END CERTIFICATE-----"
+        echo "  YAPIŞTIRDIKTAN SONRA: yeni satıra geç, Ctrl-D ile bitir"
+        echo "─────────────────────────────────────────────────────────────"
+        cat > /etc/ssl/cloudflare/origin.pem
+
+        echo
+        echo "─────────────────────────────────────────────────────────────"
+        echo "  Şimdi Private Key'i yapıştır."
+        echo "  Başlangıç: -----BEGIN PRIVATE KEY-----  (veya -----BEGIN RSA PRIVATE KEY-----)"
+        echo "  Bitiş:     -----END PRIVATE KEY-----    (veya -----END RSA PRIVATE KEY-----)"
+        echo "  YAPIŞTIRDIKTAN SONRA: yeni satıra geç, Ctrl-D ile bitir"
+        echo "─────────────────────────────────────────────────────────────"
+        cat > /etc/ssl/cloudflare/origin.key
+
+        chmod 600 /etc/ssl/cloudflare/origin.key
+        chmod 644 /etc/ssl/cloudflare/origin.pem
+        chown root:root /etc/ssl/cloudflare/origin.*
+
+        # Validate
+        if ! openssl x509 -in /etc/ssl/cloudflare/origin.pem -noout >/dev/null 2>&1; then
+            err "Certificate geçersiz görünüyor — /etc/ssl/cloudflare/origin.pem dosyasını kontrol et"
+        fi
+        if ! openssl pkey -in /etc/ssl/cloudflare/origin.key -noout >/dev/null 2>&1; then
+            err "Private key geçersiz görünüyor — /etc/ssl/cloudflare/origin.key dosyasını kontrol et"
+        fi
+
+        # Rewrite nginx config with HTTPS server + HTTP→HTTPS redirect
+        cat > /etc/nginx/sites-available/trafic <<NGINX
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+
+# HTTPS — Cloudflare Origin Certificate
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name $DOMAIN;
+    root $APP_DIR/public;
+    index index.php;
+
+    ssl_certificate     /etc/ssl/cloudflare/origin.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # ---- Cloudflare real IP -----------------------------------------------
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 2400:cb00::/32;
+    set_real_ip_from 2606:4700::/32;
+    set_real_ip_from 2803:f800::/32;
+    set_real_ip_from 2405:b500::/32;
+    set_real_ip_from 2405:8100::/32;
+    set_real_ip_from 2a06:98c0::/29;
+    set_real_ip_from 2c0f:f248::/32;
+    real_ip_header CF-Connecting-IP;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    }
+
+    location ~ ^/(src|data|bin|config\.php|migrations|composer\.|schema\.sql) { deny all; return 404; }
+    location ~ /\.(git|env|ht) { deny all; return 404; }
+
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    client_max_body_size 1m;
+    access_log /var/log/nginx/trafic-access.log;
+    error_log  /var/log/nginx/trafic-error.log;
+}
+NGINX
+        nginx -t >/dev/null 2>&1 || err "nginx config hatası — manuel kontrol: nginx -t"
+        systemctl reload nginx
+        ok "HTTPS aktif (Cloudflare Origin Cert): https://$DOMAIN"
+        echo
+        echo "  → Cloudflare panelinde: SSL/TLS → Overview → Full (strict) seç"
+        ;;
+    3)
+        warn "SSL atlandı. Site sadece HTTP üzerinden çalışacak (http://$DOMAIN)"
+        warn "Sonra kurmak için: certbot --nginx -d $DOMAIN  (LE)"
+        ;;
+    *)
+        err "Geçersiz SSL seçimi: $SSL_MODE"
+        ;;
+esac
 
 # ---- 13. Cloudflare lock-down ---------------------------------------------
 if [[ "$USE_CF" =~ ^[Yy]$ ]]; then
