@@ -91,28 +91,44 @@ layout_head($campaign ? 'Edit campaign' : 'New campaign');
   <div class="flash flash-err"><?= h($e) ?></div>
 <?php endforeach; ?>
 
-<div class="card" style="max-width:640px">
+<div class="card" style="max-width:680px">
 <form method="post">
   <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+
   <div class="field">
-    <label>Name</label>
-    <input type="text" name="name" required value="<?= h($_POST['name'] ?? $campaign['name'] ?? '') ?>">
+    <label>Kampanya adı</label>
+    <input type="text" name="name" id="f-name" required value="<?= h($_POST['name'] ?? $campaign['name'] ?? '') ?>" placeholder="Örn: Türk Mobil Kampanyası">
   </div>
+
+  <h2 style="margin:24px 0 10px;font-size:14px;color:#374151;text-transform:uppercase;letter-spacing:.04em">Bu kampanyayı tetikleyecek URL(ler)</h2>
+
   <div class="field">
-    <label>Slug</label>
-    <input type="text" name="slug" required value="<?= h($_POST['slug'] ?? $campaign['slug'] ?? '') ?>">
-    <div class="help">Visitors reach this campaign via <code>/go/{slug}</code>. Letters, digits, dash, underscore only.</div>
-  </div>
-  <div class="field">
-    <label>Özel gelen URL yolu (incoming path) <span class="muted">(opsiyonel)</span></label>
+    <label>🎯 Ziyaretçi URL'i <span class="muted">(opsiyonel — başka bir URL'de de açılsın)</span></label>
     <input type="text" name="incoming_path" value="<?= h($_POST['incoming_path'] ?? $campaign['incoming_path'] ?? '') ?>" placeholder="/ veya /promo veya /iletisim">
     <div class="help">
-      Bu kampanyayı <code>/go/{slug}</code>'a ek olarak başka bir URL'den de tetikle.<br>
-      <code>/</code> = ana sayfa (yourdomain.com/) &nbsp;·&nbsp; <code>/promo</code>, <code>/iletisim</code>, <code>/landing</code> vb.<br>
-      Boş bırakırsan sadece <code>/go/{slug}</code> çalışır.<br>
-      <span style="color:#b91c1c">Kullanılamaz:</span> <code>/admin/*</code>, <code>/go/*</code>, <code>/p/*</code>
+      <strong>Örnek:</strong><br>
+      • <code>/</code> &nbsp;→&nbsp; ana sayfada bu kampanya çalışır <code>(yourdomain.com/)</code><br>
+      • <code>/promo</code> &nbsp;→&nbsp; <code>yourdomain.com/promo</code> ziyaret edenlerde<br>
+      • <code>/iletisim</code> &nbsp;→&nbsp; <code>yourdomain.com/iletisim</code><br>
+      Boş bırakırsan sadece aşağıdaki <code>/go/{slug}</code> URL'i çalışır.<br>
+      <span style="color:#b91c1c">⚠ Kullanılamaz:</span> <code>/admin</code>, <code>/go/...</code>, <code>/p/...</code>
     </div>
   </div>
+
+  <div class="field">
+    <label>🔗 Kampanya kısa kodu (her zaman çalışan iç URL)</label>
+    <div style="display:flex;align-items:center;gap:6px">
+      <code style="background:#f3f4f6;padding:7px 10px;border-radius:6px;border:1px solid #d1d5db">/go/</code>
+      <input type="text" name="slug" id="f-slug" required value="<?= h($_POST['slug'] ?? $campaign['slug'] ?? '') ?>" placeholder="turkmobil" style="flex:1" pattern="[A-Za-z0-9_-]{1,64}">
+    </div>
+    <div class="help">
+      İç tanımlayıcı — kampanya panelden / API'den erişmek için.<br>
+      İsimden otomatik dolar, istersen değiştir. Sadece harf, rakam, tire, alt-tire.
+    </div>
+  </div>
+
+  <hr style="margin:24px 0;border:0;border-top:1px solid #e5e7eb">
+
   <div class="field">
     <label>Default redirect URL <span class="muted">(optional)</span></label>
     <input type="url" name="default_redirect_url" value="<?= h($_POST['default_redirect_url'] ?? $campaign['default_redirect_url'] ?? '') ?>" placeholder="https://example.com/fallback">
@@ -128,4 +144,26 @@ layout_head($campaign ? 'Edit campaign' : 'New campaign');
   <a class="btn btn-secondary" href="<?= h(admin_url('/')) ?>">Cancel</a>
 </form>
 </div>
+
+<script>
+// Auto-slugify name → slug (only if slug is empty or user hasn't manually edited it)
+(function() {
+    const name = document.getElementById('f-name');
+    const slug = document.getElementById('f-slug');
+    if (!name || !slug) return;
+    let userTouched = slug.value.trim() !== '';
+    slug.addEventListener('input', () => { userTouched = true; });
+    name.addEventListener('input', () => {
+        if (userTouched) return;
+        const s = name.value
+            .toLowerCase()
+            .replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i')
+            .replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u')
+            .replace(/[^a-z0-9]+/g,'-')
+            .replace(/^-+|-+$/g,'')
+            .substring(0, 64);
+        slug.value = s;
+    });
+})();
+</script>
 <?php layout_foot(); ?>
